@@ -18,7 +18,7 @@ trait GitHubReleaseModule extends Module { this: PublishModule =>
   def generateReleaseNotes: Boolean = true
   def makeLatestRelease: Boolean = true
   def apiBaseURL: String = "https://api.github.com"
-  def createReleaseURL: String = s"${apiBaseURL.trim.stripSuffix("/")}/$repoOwner/$repo/releases"
+  def createReleaseURL: String = s"${apiBaseURL.trim.stripSuffix("/")}/repos/$repoOwner/$repo/releases"
 
   def createGitHubRelease(): Command[Unit] = T.command {
     val r = requests.post(
