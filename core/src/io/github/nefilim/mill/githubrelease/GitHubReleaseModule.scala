@@ -5,8 +5,8 @@ import mill.define.{Command, Module}
 import upickle.default.{macroRW, ReadWriter => RW}
 
 trait GitHubReleaseModule extends Module {
-  def apiToken: T[String] = T { T.env.getOrElse("GITHUB_TOKEN", "") }
-  def repo: T[String] = T { T.env.getOrElse("GITHUB_REPOSITORY", "") }
+  def apiToken: T[String] = T.input { T.env.getOrElse("GITHUB_TOKEN", "") }
+  def repo: T[String] = T.input { T.env.getOrElse("GITHUB_REPOSITORY", "") }
   def tagName: T[String]
   def targetCommitish: T[String] = T.input { "main" }
   def releaseName: T[String] = tagName
@@ -15,7 +15,7 @@ trait GitHubReleaseModule extends Module {
   def preRelease: T[Boolean] = T.input { false }
   def generateReleaseNotes: T[Boolean] = T.input { true }
   def makeLatestRelease: T[Boolean] = T.input { true }
-  def apiBaseURL: T[String] = T { "https://api.github.com" }
+  def apiBaseURL: T[String] = T.input { "https://api.github.com" }
   def createReleaseURL: T[String] = T.input { s"${apiBaseURL().trim.stripSuffix("/")}/repos/${repo()}/releases" }
 
   def createGitHubRelease(): Command[Unit] = T.command {
