@@ -18,6 +18,8 @@ trait GitHubReleaseModule extends Module {
   def apiBaseURL: T[String] = T.input { "https://api.github.com" }
   def createReleaseURL: T[String] = T.input { s"${apiBaseURL().trim.stripSuffix("/")}/repos/${repo()}/releases" }
 
+  def gitHubAPIVersion: T[Option[String]] = T.input { Some("2022-11-28") }
+
   def createGitHubRelease(): Command[Unit] = T.command {
     if (repo().isBlank)
       throw new IllegalArgumentException("[GitHubReleaseModule.repo] is not configured")
@@ -28,24 +30,31 @@ trait GitHubReleaseModule extends Module {
     if (createReleaseURL().isBlank)
       throw new IllegalArgumentException("[GitHubReleaseModule.createReleaseURL] is not configured")
 
-    requests.post(
+    val r = requests.post(
       createReleaseURL(),
       headers = Map(
         "Accept" -> "application/vnd.github+json",
-        "Authorization" -> s"Bearer $apiToken",
-        "X-GitHub-Api-Version" -> "2022-11-28",
+        "Authorization" -> s"Bearer ${apiToken()}",
+      ) ++ gitHubAPIVersion().map(v => Map("X-GitHub-Api-Version" -> v)).getOrElse(Map.empty),
+      data = upickle.default.stream(
+        Release(
+          tag_name = tagName(),
+          target_commitsh = targetCommitish(),
+          name = releaseName(),
+          body = body(),
+          draft = draft(),
+          prerelease = preRelease(),
+          generate_release_notes = generateReleaseNotes(),
+          make_latest = makeLatestRelease(),
+        ),
       ),
-      data = upickle.default.stream(Release(
-        tag_name = tagName(),
-        target_commitsh = targetCommitish(),
-        name = releaseName(),
-        body = body(),
-        draft = draft(),
-        prerelease = preRelease(),
-        generate_release_notes = generateReleaseNotes(),
-        make_latest = makeLatestRelease(),
-      ))
+      check = false
     )
+    if (!r.is2xx) {
+      T.log.error(s"failed [${r.statusCode}] to create release: ${r.text}")
+      throw new Exception("failed to create a release")
+    } else
+      T.log.info(s"release created for $tagName")
     ()
   }
 }
