@@ -1,68 +1,52 @@
 package io.github.nefilim.mill.githubrelease
 
 import mill.T
-import mill.define.{Command, Input, Module}
-import upickle.default.{ReadWriter => RW, macroRW}
+import mill.define.{Command, Module}
+import upickle.default.{macroRW, ReadWriter => RW}
 
 trait GitHubReleaseModule extends Module {
-  def apiToken: String = Option(System.getenv("GITHUB_TOKEN")).getOrElse("")
-  def repo: String = Option(System.getenv("GITHUB_REPOSITORY")).getOrElse("")
-  def tagName: String
-  def targetCommitish: String = "main"
-  def releaseName: String = tagName
-  def body: String = ""
-  def draft: Boolean = false
-  def preRelease: Boolean = false
-  def generateReleaseNotes: Boolean = true
-  def makeLatestRelease: Boolean = true
-  def apiBaseURL: String = "https://api.github.com"
-  def createReleaseURL: String = s"${apiBaseURL.trim.stripSuffix("/")}/repos/$repo/releases"
+  def apiToken: T[String] = T { T.env.getOrElse("GITHUB_TOKEN", "") }
+  def repo: T[String] = T { T.env.getOrElse("GITHUB_REPOSITORY", "") }
+  def tagName: T[String]
+  def targetCommitish: T[String] = T.input { "main" }
+  def releaseName: T[String] = tagName
+  def body: T[String] = T.input { "" } // upickle is not able to drop Option None values with their keys :(((
+  def draft: T[Boolean] = T.input { false }
+  def preRelease: T[Boolean] = T.input { false }
+  def generateReleaseNotes: T[Boolean] = T.input { true }
+  def makeLatestRelease: T[Boolean] = T.input { true }
+  def apiBaseURL: T[String] = T { "https://api.github.com" }
+  def createReleaseURL: T[String] = T.input { s"${apiBaseURL().trim.stripSuffix("/")}/repos/${repo()}/releases" }
 
   def createGitHubRelease(): Command[Unit] = T.command {
-    if (repo.isBlank)
+    if (repo().isBlank)
       throw new IllegalArgumentException("[GitHubReleaseModule.repo] is not configured")
-    if (tagName.isBlank)
+    if (tagName().isBlank)
       throw new IllegalArgumentException("[GitHubReleaseModule.tagName] is not configured")
-    if (apiToken == null || apiToken.isBlank)
+    if (apiToken().isBlank)
       throw new IllegalArgumentException("[GitHubReleaseModule.apiToken] is not configured")
-    if (createReleaseURL == null || createReleaseURL.isBlank)
+    if (createReleaseURL().isBlank)
       throw new IllegalArgumentException("[GitHubReleaseModule.createReleaseURL] is not configured")
 
     requests.post(
-      createReleaseURL,
+      createReleaseURL(),
       headers = Map(
         "Accept" -> "application/vnd.github+json",
         "Authorization" -> s"Bearer $apiToken",
         "X-GitHub-Api-Version" -> "2022-11-28",
       ),
       data = upickle.default.stream(Release(
-        tag_name = tagName,
-        target_commitsh = targetCommitish,
-        name = releaseName,
-        body = body,
-        draft = draft,
-        prerelease = preRelease,
-        generate_release_notes = generateReleaseNotes,
-        make_latest = makeLatestRelease,
+        tag_name = tagName(),
+        target_commitsh = targetCommitish(),
+        name = releaseName(),
+        body = body(),
+        draft = draft(),
+        prerelease = preRelease(),
+        generate_release_notes = generateReleaseNotes(),
+        make_latest = makeLatestRelease(),
       ))
     )
     ()
-  }
-
-  def logConfig(): Unit = T.command {
-    T.log.info(
-      s"""
-        |repo: [$repo]
-        |tagName: [$tagName]
-        |targetCommitish: [$targetCommitish]
-        |body: [$body]
-        |draft: [$draft]
-        |preRelease: [$preRelease]
-        |generateReleaseNotes: [$generateReleaseNotes]
-        |makeLatestRelease: [$makeLatestRelease]
-        |apiBaseURL: [$apiBaseURL]
-        |createReleaseURL: [$createReleaseURL]
-        |""".stripMargin)
   }
 }
 
