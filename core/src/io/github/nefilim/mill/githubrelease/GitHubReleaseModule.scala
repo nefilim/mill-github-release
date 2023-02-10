@@ -2,16 +2,14 @@ package io.github.nefilim.mill.githubrelease
 
 import mill.T
 import mill.define.{Command, Input, Module}
-import mill.scalalib.PublishModule
 import upickle.default.{ReadWriter => RW, macroRW}
 
-trait GitHubReleaseModule extends Module { this: PublishModule =>
+trait GitHubReleaseModule extends Module {
   def apiToken: String = Option(System.getenv("GITHUB_TOKEN")).getOrElse("")
   def repo: String = Option(System.getenv("GITHUB_REPOSITORY")).getOrElse("")
-  def tagPrefix: String = "v"
-  def tagName: Input[String] = T.input { s"${tagPrefix}${publishVersion()}" }
+  def tagName: String
   def targetCommitish: String = "main"
-  def releaseName: Input[String] = tagName
+  def releaseName: String = tagName
   def body: String = ""
   def draft: Boolean = false
   def preRelease: Boolean = false
@@ -23,10 +21,12 @@ trait GitHubReleaseModule extends Module { this: PublishModule =>
   def createGitHubRelease(): Command[Unit] = T.command {
     if (repo.isBlank)
       throw new IllegalArgumentException("[GitHubReleaseModule.repo] is not configured")
-    if (tagName().isBlank)
+    if (tagName.isBlank)
       throw new IllegalArgumentException("[GitHubReleaseModule.tagName] is not configured")
     if (apiToken == null || apiToken.isBlank)
       throw new IllegalArgumentException("[GitHubReleaseModule.apiToken] is not configured")
+    if (createReleaseURL == null || createReleaseURL.isBlank)
+      throw new IllegalArgumentException("[GitHubReleaseModule.createReleaseURL] is not configured")
 
     requests.post(
       createReleaseURL,
@@ -36,9 +36,9 @@ trait GitHubReleaseModule extends Module { this: PublishModule =>
         "X-GitHub-Api-Version" -> "2022-11-28",
       ),
       data = upickle.default.stream(Release(
-        tag_name = tagName(),
+        tag_name = tagName,
         target_commitsh = targetCommitish,
-        name = releaseName(),
+        name = releaseName,
         body = body,
         draft = draft,
         prerelease = preRelease,
@@ -47,6 +47,22 @@ trait GitHubReleaseModule extends Module { this: PublishModule =>
       ))
     )
     ()
+  }
+
+  def logConfig(): Unit = T.command {
+    T.log.info(
+      s"""
+        |repo: [$repo]
+        |tagName: [$tagName]
+        |targetCommitish: [$targetCommitish]
+        |body: [$body]
+        |draft: [$draft]
+        |preRelease: [$preRelease]
+        |generateReleaseNotes: [$generateReleaseNotes]
+        |makeLatestRelease: [$makeLatestRelease]
+        |apiBaseURL: [$apiBaseURL]
+        |createReleaseURL: [$createReleaseURL]
+        |""".stripMargin)
   }
 }
 
